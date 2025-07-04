@@ -1,5 +1,4 @@
 (function(thisObj) {
-    // --- グローバルなヘルパー関数 ---
     function execute(undoName, operation) {
         try { app.beginUndoGroup(undoName); operation(); } catch (e) { alert("スクリプトエラー (" + undoName + "):\n" + e.toString(), "エラー"); } finally { app.endUndoGroup(); }
     }
