@@ -13,7 +13,7 @@
         return { comp: comp, layers: layerArray };
     }
 
-    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.31", undefined, {dockable:true});
+    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.33", undefined, {dockable:true});
     if (myPanel === null) return;
 
     myPanel.orientation = "column"; 
@@ -92,6 +92,7 @@
     reverseOrderButton.preferredSize.width = 100;
     var increaseStaggerButton = shiftOrderButtons.add("button", undefined, "間隔を追加/削除");
     increaseStaggerButton.helpTip = "選択レイヤーの間隔を、一番下のレイヤーを基準に調整します。";
+
 
     var layerAdjustTab = tabbedPanel.add('tab', undefined, 'レイヤー調整');
     layerAdjustTab.orientation = "column"; 
@@ -172,8 +173,8 @@
     projectPanel.alignChildren = "fill";
     projectPanel.spacing = 10;
     var organizeCompsButton = projectPanel.add("button", undefined, "全コンポをITEMフォルダへ");
-    var organizeActiveCompButton = projectPanel.add("button", undefined, "使用アイテムをフォルダへ");
-    organizeActiveCompButton.helpTip = "アクティブなコンポジションの使用アイテムを、コンポと同名のフォルダにまとめます。";
+    var organizeAllCompItemsButton = projectPanel.add("button", undefined, "全コンポのアイテムを整理");
+    organizeAllCompItemsButton.helpTip = "プロジェクト内の各コンポジションについて、使用アイテムを同名のフォルダにまとめます。";
     var deleteUnusedButton = projectPanel.add("button", undefined, "未使用フッテージを削除");
     deleteUnusedButton.helpTip = "【注意】この操作は元に戻せません！";
 
@@ -250,7 +251,79 @@
     fitToCompWidthButton.onClick = function() { execute("幅フィット", function() { var d=getActiveCompAndLayers(1); if(!d)return; for(var i=0;i<d.layers.length;i++){var l=d.layers[i];var s=l.property("Scale");if(!s)continue;try{var r=l.sourceRectAtTime(d.comp.time,false);}catch(e){continue;}if(r.width<=0)continue;var f=l.parent?l.parent.property("Scale").value[0]/100:1;var n=(d.comp.width/r.width)*100/f;s.setValue([n,n,n]);}});};
     fitToCompHeightButton.onClick = function() { execute("高さフィット", function() { var d=getActiveCompAndLayers(1); if(!d)return; for(var i=0;i<d.layers.length;i++){var l=d.layers[i];var s=l.property("Scale");if(!s)continue;try{var r=l.sourceRectAtTime(d.comp.time,false);}catch(e){continue;}if(r.height<=0)continue;var f=l.parent?l.parent.property("Scale").value[1]/100:1;var n=(d.comp.height/r.height)*100/f;s.setValue([n,n,n]);}});};
     swapPositionButton.onClick=function(){execute("ポジションを入れ替え",function(){var d=getActiveCompAndLayers(2);if(!d)return;if(d.layers.length!==2)return alert("ポジションを入れ替えるには、ちょうど2つのレイヤーを選択してください。");var a=d.layers[0],b=d.layers[1];var p=a.property("Position"),q=b.property("Position");if(!p||!q)return;var t=p.value;p.setValue(q.value);q.setValue(t);});};
-    distributeButton.onClick=function(){execute("均等配置",function(){var d=getActiveCompAndLayers(1);if(!d)return;var l=d.layers,n=l.length;var c=Math.ceil(Math.sqrt(n)),r=Math.ceil(n/c);if(n===1){c=1;r=1;}var w=d.comp.width/c,h=d.comp.height/r;for(var i=0;i<n;i++){var y=l[i];var p=y.property("Position");if(!p)continue;var o=Math.floor(i/c),x=i%c;var t=[(x+0.5)*w,(o+0.5)*h];p.setValue(y.parent?y.parent.fromWorld(t):t);if(!aspectLockCheckbox.value){saveOriginalScaleToMarker(y);var s=y.property("Scale");if(!s)continue;try{var z=y.sourceRectAtTime(d.comp.time,false);}catch(e){continue;}if(z.width<=0||z.height<=0)continue;var a=1,b=1;if(y.parent){var e=y.parent.property("Scale").value;a=e[0]/100;b=e[1]/100;}var f=(w/z.width)*100/a;var g=(h/z.height)*100/b;s.setValue([f,g,s.value.length>2?s.value[2]:0]);}}});};
+    
+    distributeButton.onClick = function() {
+        execute("均等配置 (位置参照)", function() {
+            var comp = app.project.activeItem;
+            if (!(comp && comp instanceof CompItem)) {
+                alert("コンポジションをアクティブにしてください。");
+                return;
+            }
+            var selectedLayers = comp.selectedLayers;
+            if (selectedLayers.length < 1) {
+                alert("少なくとも1個のレイヤーを選択してください。");
+                return;
+            }
+
+            var layers = [];
+            for (var i = 0; i < selectedLayers.length; i++) {
+                layers.push(selectedLayers[i]);
+            }
+
+            layers.sort(function(a, b) {
+                var posA = a.property("Position").value;
+                var posB = b.property("Position").value;
+                if (posA[1] !== posB[1]) {
+                    return posA[1] - posB[1];
+                }
+                return posA[0] - posB[0];
+            });
+
+            var n = layers.length;
+            var c = Math.ceil(Math.sqrt(n));
+            var r = Math.ceil(n / c);
+            if (n === 1) { c = 1; r = 1; }
+
+            var w = comp.width / c;
+            var h = comp.height / r;
+
+            for (var i = 0; i < n; i++) {
+                var layer = layers[i];
+                var posProp = layer.property("Position");
+                if (!posProp) continue;
+
+                var gridRow = Math.floor(i / c);
+                var gridCol = i % c;
+                var newPos = [(gridCol + 0.5) * w, (gridRow + 0.5) * h];
+
+                posProp.setValue(layer.parent ? layer.parent.fromWorld(newPos) : newPos);
+
+                if (!aspectLockCheckbox.value) {
+                    saveOriginalScaleToMarker(layer);
+                    var scaleProp = layer.property("Scale");
+                    if (!scaleProp) continue;
+                    try {
+                        var sourceRect = layer.sourceRectAtTime(comp.time, false);
+                    } catch (e) {
+                        continue;
+                    }
+                    if (sourceRect.width <= 0 || sourceRect.height <= 0) continue;
+                    
+                    var parentScaleX = 1, parentScaleY = 1;
+                    if (layer.parent) {
+                        var parentScale = layer.parent.property("Scale").value;
+                        parentScaleX = parentScale[0] / 100;
+                        parentScaleY = parentScale[1] / 100;
+                    }
+                    
+                    var newScaleX = (w / sourceRect.width) * 100 / parentScaleX;
+                    var newScaleY = (h / sourceRect.height) * 100 / parentScaleY;
+                    
+                    scaleProp.setValue([newScaleX, newScaleY, scaleProp.value.length > 2 ? scaleProp.value[2] : 0]);
+                }
+            }
+        });
+    };
     
     renameButton.onClick = function() {
         execute("レイヤーとソースをリネーム", function() {
@@ -368,46 +441,48 @@
 
     organizeCompsButton.onClick=function(){execute("コンポジションを整理",function(){var p=app.project,f="ITEM",t=null;for(var i=1;i<=p.numItems;i++){if(p.item(i)instanceof FolderItem&&p.item(i).name===f){t=p.item(i);break;}}if(t===null)t=p.items.addFolder(f);var m=0;for(var i=1;i<=p.numItems;i++){var c=p.item(i);if(c instanceof CompItem&&c.parentFolder!==t){c.parentFolder=t;m++;}}if(m>0)alert(m+"個のコンポジションを '"+f+"' フォルダに移動しました。");else alert("移動対象のコンポジションはありませんでした。");});};
     
-    organizeActiveCompButton.onClick = function() {
-        execute("使用アイテムをフォルダへ", function() {
-            var comp = app.project.activeItem;
-            if (!(comp && comp instanceof CompItem)) {
-                alert("整理したいコンポジションをアクティブにしてください。");
-                return;
-            }
+    organizeAllCompItemsButton.onClick = function() {
+        execute("全コンポの使用アイテムを整理", function() {
+            var project = app.project;
+            var totalMovedCount = 0;
 
-            var compName = comp.name;
-            var targetFolder = null;
-
-            for (var i = 1; i <= app.project.numItems; i++) {
-                var item = app.project.item(i);
-                if (item instanceof FolderItem && item.name === compName) {
-                    targetFolder = item;
-                    break;
+            for (var i = 1; i <= project.numItems; i++) {
+                var comp = project.item(i);
+                if (!(comp instanceof CompItem)) {
+                    continue; 
                 }
-            }
 
-            if (targetFolder === null) {
-                targetFolder = app.project.items.addFolder(compName);
-            }
+                var compName = comp.name;
+                var targetFolder = null;
 
-            var movedItems = {}; 
-            var movedCount = 0;
+                for (var j = 1; j <= project.numItems; j++) {
+                    var item = project.item(j);
+                    if (item instanceof FolderItem && item.name === compName) {
+                        targetFolder = item;
+                        break;
+                    }
+                }
+                if (targetFolder === null) {
+                    targetFolder = project.items.addFolder(compName);
+                }
 
-            for (var i = 1; i <= comp.numLayers; i++) {
-                var layer = comp.layer(i);
-                var source = layer.source;
-                if (source && (source instanceof FootageItem || source instanceof CompItem) && source !== comp && source.parentFolder !== targetFolder) {
-                    if (!movedItems[source.id]) {
-                        source.parentFolder = targetFolder;
-                        movedItems[source.id] = true;
-                        movedCount++;
+                var movedItems = {};
+                
+                for (var k = 1; k <= comp.numLayers; k++) {
+                    var layer = comp.layer(k);
+                    var source = layer.source;
+                    if (source && (source instanceof FootageItem || source instanceof CompItem) && source !== comp && source.parentFolder !== targetFolder) {
+                        if (!movedItems[source.id]) {
+                            source.parentFolder = targetFolder;
+                            movedItems[source.id] = true;
+                            totalMovedCount++;
+                        }
                     }
                 }
             }
 
-            if (movedCount > 0) {
-                alert(movedCount + "個のアイテムを「" + compName + "」フォルダに移動しました。");
+            if (totalMovedCount > 0) {
+                alert(totalMovedCount + "個のアイテムをそれぞれのコンポジションフォルダに移動しました。");
             } else {
                 alert("移動対象のアイテムはありませんでした。");
             }
