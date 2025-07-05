@@ -15,7 +15,7 @@
     }
 
     // --- UIの構築 ---
-    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.38", undefined, {dockable:true});
+    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.40", undefined, {dockable:true});
     if (myPanel === null) return;
 
     myPanel.orientation = "column"; 
@@ -184,6 +184,11 @@
     organizeHierarchicallyButton.helpTip = "プロジェクト内のコンポジションを、親子関係に基づいたフォルダ構造に整理します。";
     var deleteUnusedButton = projectPanel.add("button", undefined, "未使用フッテージを削除");
     deleteUnusedButton.helpTip = "【注意】この操作は元に戻せません！";
+
+    // [変更] ボタンをタブパネルの外に移動
+    var purgeCacheButton = myPanel.add("button", undefined, "全キャッシュを削除");
+    purgeCacheButton.helpTip = "すべてのメモリとディスクキャッシュを削除します。";
+    purgeCacheButton.alignment = "center";
 
     // 閉じるボタン
     var closeButton = myPanel.add("button", undefined, "閉じる");
@@ -581,6 +586,15 @@
     };
 
     deleteUnusedButton.onClick=function(){execute("未使用フッテージを削除",function(){var p=app.project;if(p.numItems===0)return alert("プロジェクトにアイテムがありません。");if(!confirm("プロジェクトから未使用のフッテージを完全に削除します。\n※コンポジションは削除されません。\n\nこの操作は元に戻せません。本当によろしいですか？"))return;var t=0,r;do{r=0;for(var i=p.numItems;i>=1;i--){var c=p.item(i);if(c instanceof FolderItem||(c.name==="Solids"&&c.typeName==="Folder"))continue;if(c instanceof FootageItem&&c.usedIn.length===0){c.remove();r++;}}t+=r;}while(r>0);if(t>0)alert(t+"個の未使用フッテージを削除しました。");else alert("削除対象の未使用フッテージは見つかりませんでした。");});};
+    
+    purgeCacheButton.onClick = function() {
+        if (confirm("すべてのメモリとディスクキャッシュを削除します。\nこの操作は時間がかかる場合があります。よろしいですか？")) {
+            execute("全キャッシュを削除", function() {
+                app.purge(PurgeTarget.ALL_CACHES);
+                alert("すべてのキャッシュを削除しました。");
+            });
+        }
+    };
 
     // 閉じるボタン
     closeButton.onClick = function() { myPanel.close(); };
