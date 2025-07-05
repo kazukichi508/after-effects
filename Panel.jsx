@@ -1,4 +1,5 @@
 (function(thisObj) {
+    // --- グローバルなヘルパー関数 ---
     function execute(undoName, operation) {
         try { app.beginUndoGroup(undoName); operation(); } catch (e) { alert("スクリプトエラー (" + undoName + "):\n" + e.toString(), "エラー"); } finally { app.endUndoGroup(); }
     }
@@ -13,7 +14,8 @@
         return { comp: comp, layers: layerArray };
     }
 
-    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.33", undefined, {dockable:true});
+    // --- UIの構築 ---
+    var myPanel = (thisObj instanceof Panel) ? thisObj : new Window("palette", "総合操作パネル v3.38", undefined, {dockable:true});
     if (myPanel === null) return;
 
     myPanel.orientation = "column"; 
@@ -25,6 +27,7 @@
     tabbedPanel.alignChildren = 'fill';
     tabbedPanel.preferredSize = [300, 450];
 
+    // --- タブ1: タイムライン操作 ---
     var timelineTab = tabbedPanel.add('tab', undefined, 'タイムライン');
     timelineTab.orientation = "column"; 
     timelineTab.alignChildren = "fill"; 
@@ -94,6 +97,7 @@
     increaseStaggerButton.helpTip = "選択レイヤーの間隔を、一番下のレイヤーを基準に調整します。";
 
 
+    // --- タブ2: レイヤー調整 ---
     var layerAdjustTab = tabbedPanel.add('tab', undefined, 'レイヤー調整');
     layerAdjustTab.orientation = "column"; 
     layerAdjustTab.alignChildren = "fill"; 
@@ -143,9 +147,10 @@
     creationButtonsGroup.alignment = "center";
     var createWhiteSolidButton = creationButtonsGroup.add("button", undefined, "白平面");
     var createBlackSolidButton = creationButtonsGroup.add("button", undefined, "黒平面");
-    var createGraySolidButton = creationButtonsGroup.add("button", undefined, "グレー平面");
+    var createGraySolidButton = creationButtonsGroup.add("button", undefined, "灰平面");
     var createNullButton = creationButtonsGroup.add("button", undefined, "ヌル");
 
+    // --- タブ3: リネーム ---
     var renameTab = tabbedPanel.add('tab', undefined, 'リネーム');
     renameTab.orientation = "column";
     renameTab.alignChildren = "fill";
@@ -163,6 +168,7 @@
     renameInput.addEventListener('blur', function(){ if(this.text.replace(/\s/g, '') === '') this.text = '新しい名前'; });
     var renameButton = renameGroup.add("button", undefined, "リネーム");
 
+    // --- タブ4: プロジェクト管理 ---
     var projectTab = tabbedPanel.add('tab', undefined, 'プロジェクト');
     projectTab.orientation = "column"; 
     projectTab.alignChildren = "fill"; 
@@ -173,15 +179,19 @@
     projectPanel.alignChildren = "fill";
     projectPanel.spacing = 10;
     var organizeCompsButton = projectPanel.add("button", undefined, "全コンポをITEMフォルダへ");
-    var organizeAllCompItemsButton = projectPanel.add("button", undefined, "全コンポのアイテムを整理");
-    organizeAllCompItemsButton.helpTip = "プロジェクト内の各コンポジションについて、使用アイテムを同名のフォルダにまとめます。";
+    organizeCompsButton.helpTip = "プロジェクト内の全てのコンポジションを「ITEM」という名前のフォルダにまとめます。";
+    var organizeHierarchicallyButton = projectPanel.add("button", undefined, "プロジェクトを階層的に整理");
+    organizeHierarchicallyButton.helpTip = "プロジェクト内のコンポジションを、親子関係に基づいたフォルダ構造に整理します。";
     var deleteUnusedButton = projectPanel.add("button", undefined, "未使用フッテージを削除");
     deleteUnusedButton.helpTip = "【注意】この操作は元に戻せません！";
 
+    // 閉じるボタン
     var closeButton = myPanel.add("button", undefined, "閉じる");
     closeButton.alignment = "center";
 
+    // --- ボタン処理のロジック ---
 
+    // タイムライン操作
     moveSpecificButton.onClick = function() { execute("指定名のレイヤーを0秒へ", function() { var c=app.project.activeItem; if(!c||!(c instanceof CompItem))return alert("コンポジションをアクティブにしてください。"); var p=(layerNameInput.text==="背景*")?"":layerNameInput.text; if(!p)return alert("移動したいレイヤー名を入力してください。"); var r=new RegExp("^"+p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&").replace(/\\\*/g,".*")+"$"); var f=false; for(var i=1;i<=c.numLayers;i++){if(r.test(c.layer(i).name)){c.layer(i).startTime=0;f=true;}} if(!f)alert("指定パターンに一致するレイヤーは見つかりませんでした。");});};
     moveSelectedButton.onClick = function() { execute("選択レイヤーを0秒へ", function() { var d=getActiveCompAndLayers(1); if(d)for(var i=0;i<d.layers.length;i++)d.layers[i].startTime=0;});};
     moveAllButton.onClick = function() { execute("全レイヤーを0秒へ", function() { var c=app.project.activeItem; if(c&&c instanceof CompItem)for(var i=1;i<=c.numLayers;i++)c.layer(i).startTime=0;});};
@@ -244,6 +254,7 @@
     };
     reverseOrderButton.onClick = function() { execute("順序を反転", function() { var d=getActiveCompAndLayers(2); if(!d)return; var f=d.layers[0]; for(var i=d.layers.length-1;i>=1;i--)d.layers[i].moveBefore(f);});};
 
+    // レイヤー調整
     var ASPECT_MARKER_COMMENT = "Original Aspect Ratio by Script";
     function saveOriginalScaleToMarker(layer) { var scaleProp = layer.property("Scale"); if (!scaleProp) return; var markerProp = layer.property("Marker"); var scaleValueStr = scaleProp.value.toString(); for (var i = markerProp.numKeys; i >= 1; i--) { if (markerProp.keyValue(i).comment === ASPECT_MARKER_COMMENT) markerProp.removeKey(i); } var newMarker = new MarkerValue(ASPECT_MARKER_COMMENT); newMarker.chapter = scaleValueStr; markerProp.setValueAtTime(layer.inPoint > 0 ? layer.inPoint : 0, newMarker); }
     matchScaleButton.onClick = function() { execute("スケールを合わせる", function() { var d=getActiveCompAndLayers(2); if(!d)return; var b=d.layers[0].property("Scale").value; for(var i=1;i<d.layers.length;i++)if(d.layers[i].property("Scale"))d.layers[i].property("Scale").setValue(b);});};
@@ -439,60 +450,142 @@
     createNullButton.onClick = function() { createNull(nullNameInput.text); };
 
 
-    organizeCompsButton.onClick=function(){execute("コンポジションを整理",function(){var p=app.project,f="ITEM",t=null;for(var i=1;i<=p.numItems;i++){if(p.item(i)instanceof FolderItem&&p.item(i).name===f){t=p.item(i);break;}}if(t===null)t=p.items.addFolder(f);var m=0;for(var i=1;i<=p.numItems;i++){var c=p.item(i);if(c instanceof CompItem&&c.parentFolder!==t){c.parentFolder=t;m++;}}if(m>0)alert(m+"個のコンポジションを '"+f+"' フォルダに移動しました。");else alert("移動対象のコンポジションはありませんでした。");});};
-    
-    organizeAllCompItemsButton.onClick = function() {
-        execute("全コンポの使用アイテムを整理", function() {
+    // プロジェクト管理
+    organizeCompsButton.onClick = function() {
+        execute("全コンポをITEMフォルダへ", function() {
             var project = app.project;
-            var totalMovedCount = 0;
+            if (project.numItems === 0) {
+                alert("プロジェクトにアイテムがありません。");
+                return;
+            }
+
+            var targetFolderName = "ITEM";
+            var targetFolder = null;
 
             for (var i = 1; i <= project.numItems; i++) {
-                var comp = project.item(i);
-                if (!(comp instanceof CompItem)) {
-                    continue; 
+                var item = project.item(i);
+                if (item instanceof FolderItem && item.name === targetFolderName) {
+                    targetFolder = item;
+                    break;
                 }
+            }
+            if (targetFolder === null) {
+                targetFolder = project.items.addFolder(targetFolderName);
+            }
 
-                var compName = comp.name;
-                var targetFolder = null;
+            var compsToMove = [];
+            for (var i = 1; i <= project.numItems; i++) {
+                var item = project.item(i);
+                if (item instanceof CompItem && item.parentFolder !== targetFolder) {
+                    compsToMove.push(item);
+                }
+            }
 
-                for (var j = 1; j <= project.numItems; j++) {
-                    var item = project.item(j);
-                    if (item instanceof FolderItem && item.name === compName) {
-                        targetFolder = item;
-                        break;
+            for (var i = 0; i < compsToMove.length; i++) {
+                compsToMove[i].parentFolder = targetFolder;
+            }
+
+            if (compsToMove.length > 0) {
+                alert(compsToMove.length + "個のコンポジションを「" + targetFolderName + "」フォルダに移動しました。");
+            } else {
+                alert("移動対象のコンポジションはありませんでした。");
+            }
+        });
+    };
+    
+    organizeHierarchicallyButton.onClick = function() {
+        execute("プロジェクトを階層的に整理", function() {
+            var project = app.project;
+            if (project.numItems === 0) {
+                alert("プロジェクトにアイテムがありません。");
+                return;
+            }
+
+            var mainFolderName = "Organized Project";
+            var mainFolder = null;
+            for (var i = 1; i <= project.numItems; i++) {
+                if (project.item(i) instanceof FolderItem && project.item(i).name === mainFolderName) {
+                    mainFolder = project.item(i);
+                    break;
+                }
+            }
+            if (mainFolder === null) {
+                mainFolder = project.items.addFolder(mainFolderName);
+            }
+
+            var allComps = [];
+            var compUsage = {};
+            for (var i = 1; i <= project.numItems; i++) {
+                var item = project.item(i);
+                if (item instanceof CompItem) {
+                    allComps.push(item);
+                    if (compUsage[item.id] === undefined) {
+                        compUsage[item.id] = 0;
                     }
-                }
-                if (targetFolder === null) {
-                    targetFolder = project.items.addFolder(compName);
-                }
-
-                var movedItems = {};
-                
-                for (var k = 1; k <= comp.numLayers; k++) {
-                    var layer = comp.layer(k);
-                    var source = layer.source;
-                    if (source && (source instanceof FootageItem || source instanceof CompItem) && source !== comp && source.parentFolder !== targetFolder) {
-                        if (!movedItems[source.id]) {
-                            source.parentFolder = targetFolder;
-                            movedItems[source.id] = true;
-                            totalMovedCount++;
+                    for (var j = 1; j <= item.numLayers; j++) {
+                        var source = item.layer(j).source;
+                        if (source && source instanceof CompItem) {
+                            if (compUsage[source.id] === undefined) {
+                                compUsage[source.id] = 1;
+                            } else {
+                                compUsage[source.id]++;
+                            }
                         }
                     }
                 }
             }
 
-            if (totalMovedCount > 0) {
-                alert(totalMovedCount + "個のアイテムをそれぞれのコンポジションフォルダに移動しました。");
-            } else {
-                alert("移動対象のアイテムはありませんでした。");
+            var rootComps = [];
+            for (var i = 0; i < allComps.length; i++) {
+                if (compUsage[allComps[i].id] === 0) {
+                    rootComps.push(allComps[i]);
+                }
             }
+
+            if (rootComps.length === 0 && allComps.length > 0) {
+                rootComps.push(allComps[0]);
+            }
+            
+            var processedItems = {};
+
+            function organizeComp(comp, parentFolder) {
+                if (processedItems[comp.id]) {
+                    return; 
+                }
+                
+                var compFolder = parentFolder.items.addFolder(comp.name);
+                comp.parentFolder = compFolder;
+                processedItems[comp.id] = true;
+
+                for (var i = 1; i <= comp.numLayers; i++) {
+                    var layer = comp.layer(i);
+                    var source = layer.source;
+
+                    if (source && !processedItems[source.id]) {
+                        if (source instanceof CompItem) {
+                            organizeComp(source, compFolder);
+                        } else if (source instanceof FootageItem) {
+                            source.parentFolder = compFolder;
+                            processedItems[source.id] = true;
+                        }
+                    }
+                }
+            }
+
+            for (var i = 0; i < rootComps.length; i++) {
+                organizeComp(rootComps[i], mainFolder);
+            }
+
+            alert("プロジェクトの階層的な整理が完了しました。");
         });
     };
 
     deleteUnusedButton.onClick=function(){execute("未使用フッテージを削除",function(){var p=app.project;if(p.numItems===0)return alert("プロジェクトにアイテムがありません。");if(!confirm("プロジェクトから未使用のフッテージを完全に削除します。\n※コンポジションは削除されません。\n\nこの操作は元に戻せません。本当によろしいですか？"))return;var t=0,r;do{r=0;for(var i=p.numItems;i>=1;i--){var c=p.item(i);if(c instanceof FolderItem||(c.name==="Solids"&&c.typeName==="Folder"))continue;if(c instanceof FootageItem&&c.usedIn.length===0){c.remove();r++;}}t+=r;}while(r>0);if(t>0)alert(t+"個の未使用フッテージを削除しました。");else alert("削除対象の未使用フッテージは見つかりませんでした。");});};
 
+    // 閉じるボタン
     closeButton.onClick = function() { myPanel.close(); };
 
+    // --- ウィンドウ表示 ---
     myPanel.layout.layout(true);
     myPanel.onResizing = myPanel.onResize = function() {
         if (this.layout) {
